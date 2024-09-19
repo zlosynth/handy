@@ -5112,7 +5112,7 @@
   (gr_text "Petr Horáček <petr@zlosynth.com>, 2024, CC BY-SA" (at 105.48 118.13 90) (layer "F.SilkS") (tstamp 1376c21a-7cf6-45a1-b851-381622dcd17d)
     (effects (font (size 1 1) (thickness 0.15)) (justify left bottom))
   )
-  (gr_text "handy board proto 1" (at 104.46 148.67 -90) (layer "F.SilkS") (tstamp 1b5db076-27a2-418b-8d43-5ad1ba1f7df4)
+  (gr_text "handy board proto 1" (at 105.43 164.22 90) (layer "F.SilkS") (tstamp 1b5db076-27a2-418b-8d43-5ad1ba1f7df4)
     (effects (font (size 1 1) (thickness 0.15)) (justify left bottom))
   )
 
