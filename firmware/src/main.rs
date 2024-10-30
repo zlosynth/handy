@@ -12,9 +12,8 @@ mod app {
     use systick_monotonic::Systick;
 
     use handy_firmware::audio::{AudioInterface, SAMPLE_RATE};
-    use handy_firmware::control_input::ControlInputInterface;
-    use handy_firmware::control_input::ControlInputSnapshot;
-    use handy_firmware::control_output::ControlOutputInterface;
+    use handy_firmware::control_input::{ControlInputInterface, ControlInputSnapshot};
+    use handy_firmware::control_output::{ControlOutputInterface, ControlOutputState};
     use handy_firmware::queue_utils;
     use handy_firmware::random_generator::RandomGenerator;
     use handy_firmware::startup_sequence;
@@ -22,7 +21,111 @@ mod app {
 
     struct Dsp {}
     struct DspAttributes {}
-    struct Controller {}
+
+    struct Controller {
+        clock_1_phase: f32,
+        clock_1_speed: f32,
+        clock_2_phase: u8,
+        clock_2_division: u8,
+        leds: [BinaryOutput; 4],
+        gates: [BinaryOutput; 2],
+    }
+
+    struct BinaryOutput {
+        on: bool,
+        countdown: usize,
+    }
+
+    impl Controller {
+        pub fn new() -> Self {
+            Self {
+                clock_1_phase: 0.0,
+                clock_1_speed: 0.001,
+                clock_2_phase: 0,
+                clock_2_division: 1,
+                leds: [
+                    BinaryOutput::new(),
+                    BinaryOutput::new(),
+                    BinaryOutput::new(),
+                    BinaryOutput::new(),
+                ],
+                gates: [BinaryOutput::new(), BinaryOutput::new()],
+            }
+        }
+
+        pub fn apply_input_snapshot(&mut self, snapshot: ControlInputSnapshot) {
+            // Pot should move from output every 100 ms to every 2000 ms
+            // Meaning the speed (revolutions per second) should be between 100 and 0.5.
+            const MIN: f32 = 0.5;
+            const MAX: f32 = 10.0;
+            self.clock_1_speed = MIN + snapshot.pots[1] * (MAX - MIN);
+            self.clock_2_division = 1 + (snapshot.pots[0] * 8.99) as u8;
+            // TODO: Second output would be a division of the first
+            // TODO: Button click resets the output
+        }
+
+        pub fn tick(&mut self) -> ControlOutputState {
+            // NOTE: For control SR of 1 kHz.
+            self.clock_1_phase += self.clock_1_speed / 1000.0;
+            if self.clock_1_phase >= 1.0 {
+                (self.clock_1_phase, _) = libm::modff(self.clock_1_phase);
+                self.clock_2_phase += 1;
+                self.leds[0].enable_with_countdown(30);
+                self.gates[0].enable_with_countdown(10);
+            }
+
+            if self.clock_2_phase >= self.clock_2_division {
+                self.clock_2_phase = 0;
+                self.leds[1].enable_with_countdown(30);
+                self.gates[1].enable_with_countdown(10);
+            }
+
+            self.leds[0].tick();
+            self.leds[1].tick();
+            self.leds[2].tick();
+            self.leds[3].tick();
+            self.gates[0].tick();
+            self.gates[1].tick();
+
+            ControlOutputState {
+                leds: [
+                    self.leds[0].value(),
+                    self.leds[1].value(),
+                    self.leds[2].value(),
+                    self.leds[3].value(),
+                ],
+                gates: [self.gates[0].value(), self.gates[1].value()],
+                cvs: [0.0, 0.0],
+            }
+        }
+    }
+
+    impl BinaryOutput {
+        pub fn new() -> Self {
+            Self {
+                on: false,
+                countdown: 0,
+            }
+        }
+
+        pub fn tick(&mut self) {
+            if self.countdown > 0 {
+                self.countdown -= 1;
+                if self.countdown == 0 {
+                    self.on = false;
+                }
+            }
+        }
+
+        pub fn value(&self) -> bool {
+            self.on
+        }
+
+        pub fn enable_with_countdown(&mut self, countdown: usize) {
+            self.on = true;
+            self.countdown = countdown;
+        }
+    }
 
     #[link_section = ".sram"]
     static mut MEMORY: [MaybeUninit<u32>; 96 * 1024] =
@@ -79,7 +182,7 @@ mod app {
         // let controller = Controller::new(seed, save);
         // let mut stack_manager = MemoryManager::from(unsafe { &mut MEMORY[..] });
         // let dsp = Dsp::new(SAMPLE_RATE as f32, &mut stack_manager);
-        let controller = Controller {};
+        let controller = Controller::new();
         let dsp = Dsp {};
 
         defmt::info!("Spawning tasks");
@@ -147,12 +250,12 @@ mod app {
         queue_utils::warn_about_capacity("input_snapshot", control_input_snapshot_consumer);
 
         if let Some(snapshot) = queue_utils::dequeue_last(control_input_snapshot_consumer) {
-            // let result = controller.apply_input_snapshot(snapshot);
+            let result = controller.apply_input_snapshot(snapshot);
             // let _ = dsp_attributes_producer.enqueue(result.dsp_attributes);
         }
 
-        // let desired_output_state = controller.tick();
-        // control_output_interface.set_state(&desired_output_state);
+        let desired_output_state = controller.tick();
+        control_output_interface.set_state(&desired_output_state);
     }
 
     #[task(
