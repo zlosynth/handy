@@ -1,0 +1,56 @@
+[package]
+name = "handy-firmware"
+version = "0.1.0" # hack/release.sh
+edition = "2021"
+authors = ["Petr Horáček <petr@zlosynth.com>"]
+license = "GPL-3.0-or-later"
+publish = false
+
+[features]
+idle-measuring = []
+
+[lib]
+harness = false
+
+[[bin]]
+name = "main"
+path = "src/main.rs"
+harness = false
+
+[[test]]
+name = "diagnostics"
+harness = false
+
+[dependencies]
+cortex-m = { version = "0.7", features = ["critical-section-single-core"] }
+cortex-m-rtic = "1"
+systick-monotonic = "1"
+defmt = "0.3"
+defmt-rtt = "0.4"
+panic-probe = { version = "0.3", features = ["print-defmt"] }
+stm32h7xx-hal = { version = "0.14", features = [
+  "stm32h750v",
+  "rt",
+  "revision_v",
+  "defmt",
+] }
+daisy = { version = "0.8.0", features = ["patch_sm"] }
+fugit = "0.3"
+nb = "1"
+heapless = "0.7"
+libm = "0.2"
+
+[dev-dependencies]
+cortex-m-rt = "0.7"
+
+[profile.dev]
+codegen-units = 1 # better optimizations
+debug = true      # symbols are nice and they don't increase the size on flash
+lto = true        # better optimizations
+opt-level = 3     # test with the same optimization as released code
+
+[profile.release]
+codegen-units = 1
+debug = true
+lto = true
+opt-level = 3
