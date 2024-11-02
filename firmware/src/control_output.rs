@@ -31,8 +31,8 @@ type Led2 = gpio::gpiob::PB14<gpio::Output>;
 type Led3 = gpio::gpiob::PB8<gpio::Output>;
 type Led4 = gpio::gpiob::PB9<gpio::Output>;
 
-type Gate1 = gpio::gpioc::PC13<gpio::Output>;
-type Gate2 = gpio::gpioc::PC14<gpio::Output>;
+type Gate1 = gpio::gpioc::PC14<gpio::Output>;
+type Gate2 = gpio::gpioc::PC13<gpio::Output>;
 
 impl ControlOutputInterface {
     pub fn new(config: Config) -> Self {
@@ -51,21 +51,15 @@ impl ControlOutputInterface {
         self.pins.gates.0.set_state(state.gates[0].into());
         self.pins.gates.1.set_state(state.gates[1].into());
 
-        self.dac.0.set_value(f32_cv_to_u16(state.cvs[0]));
-        self.dac.1.set_value(f32_cv_to_u16(state.cvs[1]));
+        self.dac.1.set_value(f32_cv_to_u16(state.cvs[0]));
+        self.dac.0.set_value(f32_cv_to_u16(state.cvs[1]));
     }
 }
 
 fn f32_cv_to_u16(value: f32) -> u16 {
     const OUT_MIN: f32 = 0.0;
     const OUT_MAX: f32 = 5.0;
-    // NOTE: The DSP works with 7 octaves, but the module can output only 5.
-    // Remove the first and the last octave.
-    let trimmed = (value - 1.0).clamp(0.0, 5.0);
-    let desired = (trimmed - OUT_MIN) / (OUT_MAX - OUT_MIN);
-    // NOTE: Measuring of DAC showed that it actually starts above 0.0 V,
-    // and does not get all the way to 5.0. This compensates for that.
-    let compensated = desired * (4.0 / (3.94 - 0.009)) - (0.009 / 5.0);
-    let scaled = (compensated * 4096.0).clamp(0.0, 4095.999);
+    let desired = (value - OUT_MIN) / (OUT_MAX - OUT_MIN);
+    let scaled = (desired * 4096.0).clamp(0.0, 4095.999);
     scaled as u16
 }

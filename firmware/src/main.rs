@@ -19,6 +19,12 @@ mod app {
     use handy_firmware::startup_sequence;
     use handy_firmware::system::System;
 
+    // TODO:
+    // - [X] CV generator steady
+    // - [ ] CV generator sine
+    // - [X] Attenuator
+    // - [ ] Saw VCO
+
     struct Dsp {}
     struct DspAttributes {}
 
@@ -27,13 +33,21 @@ mod app {
         clock_1_speed: f32,
         clock_2_phase: u8,
         clock_2_division: u8,
+        attenuation_input: f32,
+        attenuation: f32,
+        cv_generator_steady: f32,
         leds: [BinaryOutput; 4],
         gates: [BinaryOutput; 2],
+        cvs: [LinearOutput; 2],
     }
 
     struct BinaryOutput {
         on: bool,
         countdown: usize,
+    }
+
+    struct LinearOutput {
+        value: f32,
     }
 
     impl Controller {
@@ -43,6 +57,9 @@ mod app {
                 clock_1_speed: 0.001,
                 clock_2_phase: 0,
                 clock_2_division: 1,
+                attenuation_input: 0.0,
+                attenuation: 0.0,
+                cv_generator_steady: 0.0,
                 leds: [
                     BinaryOutput::new(),
                     BinaryOutput::new(),
@@ -50,6 +67,7 @@ mod app {
                     BinaryOutput::new(),
                 ],
                 gates: [BinaryOutput::new(), BinaryOutput::new()],
+                cvs: [LinearOutput::new(), LinearOutput::new()],
             }
         }
 
@@ -60,8 +78,11 @@ mod app {
             const MAX: f32 = 10.0;
             self.clock_1_speed = MIN + snapshot.pots[1] * (MAX - MIN);
             self.clock_2_division = 1 + (snapshot.pots[0] * 8.99) as u8;
-            // TODO: Second output would be a division of the first
-            // TODO: Button click resets the output
+
+            self.attenuation = snapshot.pots[2];
+            self.attenuation_input = snapshot.cvs[2].unwrap_or(0.0);
+
+            self.cv_generator_steady = snapshot.pots[3] * 5.0;
         }
 
         pub fn tick(&mut self) -> ControlOutputState {
@@ -80,6 +101,9 @@ mod app {
                 self.gates[1].enable_with_countdown(10);
             }
 
+            self.cvs[0].set_value(self.cv_generator_steady);
+            self.cvs[1].set_value(self.attenuation_input * self.attenuation);
+
             self.leds[0].tick();
             self.leds[1].tick();
             self.leds[2].tick();
@@ -95,7 +119,7 @@ mod app {
                     self.leds[3].value(),
                 ],
                 gates: [self.gates[0].value(), self.gates[1].value()],
-                cvs: [0.0, 0.0],
+                cvs: [self.cvs[0].value(), self.cvs[1].value()],
             }
         }
     }
@@ -124,6 +148,20 @@ mod app {
         pub fn enable_with_countdown(&mut self, countdown: usize) {
             self.on = true;
             self.countdown = countdown;
+        }
+    }
+
+    impl LinearOutput {
+        pub fn new() -> Self {
+            Self { value: 0.0 }
+        }
+
+        pub fn set_value(&mut self, value: f32) {
+            self.value = value;
+        }
+
+        pub fn value(&self) -> f32 {
+            self.value
         }
     }
 

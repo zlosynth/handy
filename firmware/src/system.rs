@@ -120,8 +120,8 @@ impl System {
                         pins.GPIO.PIN_B8.into_push_pull_output(),
                     ),
                     gates: (
-                        pins.GPIO.PIN_B5.into_push_pull_output(),
                         pins.GPIO.PIN_B6.into_push_pull_output(),
+                        pins.GPIO.PIN_B5.into_push_pull_output(),
                     ),
                 },
                 dac: (dac1, dac2),
